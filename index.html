@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BuzzChain Claim — Seat #3307</title>
+<style>
+  body { background:#0a0a0a; color:#eee; font-family: system-ui, sans-serif; margin:0; padding:20px; }
+  .box { max-width:520px; margin:0 auto; border:1px solid #333; border-radius:12px; padding:20px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .muted { color:#999; font-size:13px; line-height:1.5; }
+  .big { font-size:28px; font-weight:700; margin:12px 0 4px; }
+  button { width:100%; padding:14px; margin-top:12px; font-size:16px; border-radius:10px; border:0; cursor:pointer; }
+  #connectBtn { background:#f5c518; color:#111; font-weight:700; }
+  #claimBtn { background:#22c55e; color:#fff; font-weight:700; }
+  button:disabled { opacity:.45; cursor:default; }
+  code { font-size:12px; word-break:break-all; color:#bbb; }
+  #status { margin-top:14px; font-size:14px; line-height:1.5; word-break:break-word; }
+  #status a { color:#7dd3fc; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>BuzzChain — Claim $BUZZ</h1>
+  <p class="muted">Seat #3307 · staked oleh 0xe5C0…C01f · Sepolia testnet</p>
+  <div>Pending sekarang:</div>
+  <div class="big" id="pending">…</div>
+  <div class="muted" id="walletLine">Wallet belum connect.</div>
+  <button id="connectBtn">1 · Connect Wallet</button>
+  <button id="claimBtn" disabled>2 · Claim $BUZZ</button>
+  <div id="status"></div>
+  <hr style="border-color:#222;margin-top:20px">
+  <p class="muted">Halaman ini HANYA memanggil fungsi <code>claim()</code> di vault BuzzChain
+  <code>0x5263121Df28F91EC3c2773814a7c798c0849E148</code>.
+  Tidak pernah meminta seed phrase / private key. Transaksi harus kamu setujui sendiri di wallet kamu.
+  $BUZZ adalah aset testnet, tidak ada nilainya.</p>
+</div>
+<script>
+var VAULT = "0x5263121Df28F91EC3c2773814a7c798c0849E148";
+var RPC = "https://ethereum-sepolia.publicnode.com";
+var TOKEN_ID = 3307;
+var CLAIM_DATA = "0x4e71d92d"; // claim()
+var PENDING_DATA = "0x7dcb2abf" + "0000000000000000000000000000000000000000000000000000000000000ceb"; // pendingRewards(3307)
+
+function setStatus(html){ document.getElementById("status").innerHTML = html; }
+
+async function rpcCall(method, params){
+  var r = await fetch(RPC, { method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({jsonrpc:"2.0", method:method, params:params, id:1}) });
+  var j = await r.json();
+  if (j.error) throw new Error(j.error.message);
+  return j.result;
+}
+
+async function refreshPending(){
+  try {
+    var res = await rpcCall("eth_call", [{to: VAULT, data: PENDING_DATA}, "latest"]);
+    var val = Number(BigInt(res)) / 1e18;
+    document.getElementById("pending").textContent = val.toFixed(4) + " $BUZZ";
+  } catch(e){
+    document.getElementById("pending").textContent = "gagal baca (" + e.message + ")";
+  }
+}
+
+var account = null;
+document.getElementById("connectBtn").onclick = async function(){
+  if (!window.ethereum) {
+    setStatus("Wallet tidak ketemu di browser ini. Buka halaman ini dari dalam browser wallet kamu (mis. MetaMask app &gt; Browser), lalu tap Connect lagi.");
+    return;
+  }
+  try {
+    var chainId = await window.ethereum.request({method:"eth_chainId"});
+    if (chainId !== "0xaa36a7") {
+      await window.ethereum.request({method:"wallet_switchEthereumChain", params:[{chainId:"0xaa36a7"}]});
+    }
+    var accs = await window.ethereum.request({method:"eth_requestAccounts"});
+    account = accs[0];
+    document.getElementById("walletLine").textContent = "Connected: " + account;
+    document.getElementById("claimBtn").disabled = false;
+    setStatus("Wallet connect. Tap Claim, lalu setujui transaksi di wallet kamu (gas Sepolia ETH, gratis dari faucet).");
+  } catch(e){
+    setStatus("Gagal connect: " + (e && e.message ? e.message : e));
+  }
+};
+
+document.getElementById("claimBtn").onclick = async function(){
+  if (!account) { setStatus("Connect wallet dulu."); return; }
+  try {
+    setStatus("Mengirim transaksi claim… setujui di wallet kamu.");
+    var txHash = await window.ethereum.request({method:"eth_sendTransaction", params:[{
+      from: account, to: VAULT, data: CLAIM_DATA, value: "0x0"
+    }]});
+    setStatus("Terkirim! Tx: <a target='_blank' href='https://sepolia.etherscan.io/tx/" + txHash + "'>" + txHash + "</a><br>Tunggu 1 blok, lalu $BUZZ masuk ke wallet kamu. Refresh halaman ini untuk lihat pending terbaru.");
+    refreshPending();
+  } catch(e){
+    setStatus("Claim gagal / dibatalkan: " + (e && e.message ? e.message : e));
+  }
+};
+
+refreshPending();
+</script>
+</body>
+</html>
